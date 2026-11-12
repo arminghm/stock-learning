@@ -67,10 +67,13 @@ function exactKeys(object, keys) {
 export function validateReport(report, course) {
   const lesson = course.lessons.find(item => item.id === report?.lessonId);
   const assessment = report?.kind === 'assessment';
+  const sessionAssessment = report?.kind === 'session_assessment';
   const fields = ['schemaVersion', 'id', 'lessonId', 'kind', 'date', 'feedback', 'nextStep'];
-  const extra = assessment ? ['answers', 'artifact', 'practiceScores'] : ['recall', 'score'];
+  const extra = assessment ? ['answers', 'artifact', 'practiceScores']
+    : sessionAssessment ? ['quizScore', 'practiceScore', 'source', 'evidence']
+    : ['recall', 'score'];
   assert(exactKeys(report, [...fields, ...extra]) && report.schemaVersion === 1 && typeof report.id === 'string'
-    && reportId.test(report.id) && lesson && (assessment || report.kind === 'review'), 'نوع، شناسه یا ساختار گزارش معتبر نیست.');
+    && reportId.test(report.id) && lesson && (assessment || sessionAssessment || report.kind === 'review'), 'نوع، شناسه یا ساختار گزارش معتبر نیست.');
   assert(typeof report.date === 'string' && isoDate.test(report.date)
     && Number.isFinite(Date.parse(report.date)) && addDays(report.date, 0) === report.date
     && report.date <= localDay(), 'تاریخ باید میلادی، معتبر و حداکثر امروز باشد (YYYY-MM-DD).');
@@ -85,6 +88,30 @@ export function validateReport(report, course) {
     assert(nonempty(report.artifact) && exactKeys(report.practiceScores, lesson.practice.rubric.map(item => item.id))
       && lesson.practice.rubric.every(item => validScore(report.practiceScores[item.id], item.points)),
     'خروجی تمرین و امتیاز همه معیارهای عملی لازم است.');
+  } else if (sessionAssessment) {
+    // Preserve a previous tutor's assessment without fabricating answers
+    // to the current curriculum's different quiz or practice rubric.
+    const ev = report.evidence;
+    const validTextList = values => Array.isArray(values) && values.length > 0
+      && values.every(value => nonempty(value, 1200));
+    assert(report.source === 'tutor_session_summary' && validScore(report.quizScore, 100)
+      && validScore(report.practiceScore, 100)
+      && exactKeys(ev, ['topics', 'conceptual', 'practical', 'needsReview', 'summary'])
+      && validTextList(ev.topics) && validTextList(ev.needsReview)
+      && nonempty(ev.summary, 6000)
+      && Array.isArray(ev.conceptual) && ev.conceptual.length > 0
+      && ev.conceptual.every(item => exactKeys(item, ['topic', 'summary', 'score', 'maxScore'])
+        && nonempty(item.topic, 200) && nonempty(item.summary, 1500)
+        && typeof item.maxScore === 'number' && item.maxScore > 0
+        && typeof item.score === 'number' && item.score >= 0 && item.score <= item.maxScore)
+      && Array.isArray(ev.practical) && ev.practical.length > 0
+      && ev.practical.every(item => exactKeys(item, ['topic', 'summary'])
+        && nonempty(item.topic, 200) && nonempty(item.summary, 1500)),
+    'گزارش پیشین باید شامل نمره، منبع و شواهد خلاصه‌شده واقعی باشد.');
+    const possible = ev.conceptual.reduce((sum, item) => sum + item.maxScore, 0);
+    const achieved = ev.conceptual.reduce((sum, item) => sum + item.score, 0);
+    assert(Math.abs((achieved / possible) * 100 - report.quizScore) < 0.00001,
+      'نمره مفهومی گزارش باید با مجموع امتیازهای پرسش‌ها برابر باشد.');
   } else {
     assert(nonempty(report.recall) && validScore(report.score, 100), 'پاسخ مرور و امتیاز ۰ تا ۱۰۰ لازم است.');
   }
@@ -92,6 +119,9 @@ export function validateReport(report, course) {
 }
 
 export function assessmentScores(report) {
+  if (report.kind === 'session_assessment') {
+    return { quiz: report.quizScore, practice: report.practiceScore };
+  }
   return {
     quiz: Object.values(report.answers).reduce((sum, answer) => sum + answer.score, 0),
     practice: Object.values(report.practiceScores).reduce((sum, score) => sum + score, 0)
@@ -115,7 +145,7 @@ export function progress(course, records, today = localDay()) {
     ids.add(report.id);
     const current = state.get(report.lessonId);
     const lesson = lessons.get(report.lessonId);
-    if (report.kind === 'assessment') {
+    if (report.kind === 'assessment' || report.kind === 'session_assessment') {
       assert(lesson.prerequisites.every(id => state.get(id).mastered), 'پیش‌نیاز این گزارش در تاریخ ثبت احراز نشده است: ' + report.lessonId);
       const scores = assessmentScores(report);
       current.mastered = scores.quiz >= mastery && scores.practice >= mastery;
