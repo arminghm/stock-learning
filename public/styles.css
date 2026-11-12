@@ -180,3 +180,7 @@ pre { background: var(--bg); color: var(--mint); padding: .9rem; border-radius: 
   .stats { grid-template-columns: 1fr; }
   .review-item { align-items: start; flex-direction: column; }
 }
+
+/* Preserve paragraphs and readable RTL spacing for lesson content. */
+.lesson-reading { white-space: pre-line; text-align: start; line-height: 2.05; color: var(--muted); overflow-wrap: anywhere; }
+.lesson-reading bdi, .lesson-code { unicode-bidi: isolate; }
