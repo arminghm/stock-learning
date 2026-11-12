@@ -164,15 +164,32 @@ function reviewsPage() {
 
 function reportCard(report, staged) {
   const lesson = course.lessons.find(item => item.id === report.lessonId);
-  const scores = report.kind === 'assessment' ? assessmentScores(report) : null;
-  return `<details class="panel report-card"><summary><bdi class="lesson-code">${lesson.id}</bdi> ${esc(lesson.title)} · ${report.kind === 'assessment' ? 'ارزیابی' : 'مرور'} · ${dateLabel(report.date)}
-  <span class="pill ${staged ? 'retry' : 'mastered'}">${staged ? 'روی این مرورگر' : 'ثبت در مخزن'}</span></summary>
-  ${scores ? `<p>آزمون ${num(scores.quiz)} / ۱۰۰ · تمرین ${num(scores.practice)} / ۱۰۰</p><h3>پاسخ‌ها</h3><ol>${lesson.quiz.map(item => `<li>${esc(item.question)} <span class="muted">(${num(report.answers[item.id].score)} از ${num(item.points)})</span><p class="verbatim" dir="auto">${esc(report.answers[item.id].response)}</p></li>`).join('')}</ol>
-    <h3>خروجی تمرین</h3><p class="verbatim" dir="auto">${esc(report.artifact)}</p>${list(lesson.practice.rubric.map(item => item.label + ' · ' + num(report.practiceScores[item.id]) + ' از ' + num(item.points)))}`
-    : `<p>امتیاز مرور ${num(report.score)} از ۱۰۰</p><p class="verbatim" dir="auto">${esc(report.recall)}</p>`}
-    <h3>بازخورد</h3><p class="verbatim" dir="auto">${esc(report.feedback)}</p><h3>گام بعد</h3><p class="verbatim" dir="auto">${esc(report.nextStep)}</p></details>`;
+  const session = report.kind === 'session_assessment';
+  const scores = report.kind !== 'review' ? assessmentScores(report) : null;
+  const heading = session ? 'ارزیابی ثبت‌شده از چت پیشین' : report.kind === 'review' ? 'مرور' : 'ارزیابی';
+  let details = '';
+  if (session) {
+    const ev = report.evidence;
+    details = '<p>این گزارش از ارزیابی مربی جلسه پیشین نقل شده است. متن کامل پاسخ‌های خام در دسترس نبوده و خلاصه‌ها به‌جای پاسخ خام معرفی نمی‌شوند.</p>'
+      + '<h3>موضوعات پوشش‌داده‌شده</h3>' + list(ev.topics)
+      + '<h3>شواهد مفهومی</h3><ol>' + ev.conceptual.map(item => '<li>' + esc(item.topic) + ' · ' + num(item.score) + ' از ' + num(item.maxScore) + '<p class="verbatim" dir="auto">' + esc(item.summary) + '</p></li>').join('') + '</ol>'
+      + '<h3>شواهد عملی</h3><ol>' + ev.practical.map(item => '<li>' + esc(item.topic) + '<p class="verbatim" dir="auto">' + esc(item.summary) + '</p></li>').join('') + '</ol>'
+      + '<h3>نقاط نیازمند مرور</h3>' + list(ev.needsReview)
+      + '<h3>جمع‌بندی گزارش</h3><p class="verbatim" dir="auto">' + esc(ev.summary) + '</p>';
+  } else if (report.kind === 'assessment') {
+    details = '<h3>پاسخ‌ها</h3><ol>' + lesson.quiz.map(item => '<li>' + esc(item.question) + ' (' + num(report.answers[item.id].score) + ' از ' + num(item.points) + ')<p class="verbatim" dir="auto">' + esc(report.answers[item.id].response) + '</p></li>').join('') + '</ol>'
+      + '<h3>خروجی تمرین</h3><p class="verbatim" dir="auto">' + esc(report.artifact) + '</p>'
+      + list(lesson.practice.rubric.map(item => item.label + ' · ' + num(report.practiceScores[item.id]) + ' از ' + num(item.points)));
+  } else {
+    details = '<p>امتیاز مرور ' + num(report.score) + ' از ۱۰۰</p><p class="verbatim" dir="auto">' + esc(report.recall) + '</p>';
+  }
+  return `<details class="panel report-card"><summary><bdi class="lesson-code">${lesson.id}</bdi> ${esc(lesson.title)} · ${heading} · ${dateLabel(report.date)}
+    <span class="pill ${staged ? 'retry' : 'mastered'}">${staged ? 'روی این مرورگر' : 'ثبت در مخزن'}</span></summary>
+    ${scores ? `<p>آزمون ${num(scores.quiz)} از ۱۰۰ · تمرین ${num(scores.practice)} از ۱۰۰</p>` : ''}
+    ${details}
+    <h3>بازخورد</h3><p class="verbatim" dir="auto">${esc(report.feedback)}</p>
+    <h3>گام بعد</h3><p class="verbatim" dir="auto">${esc(report.nextStep)}</p></details>`;
 }
-
 function evidencePage() {
   const pendingIds = new Set(pending.map(report => report.id));
   return title('پاسخ، خروجی و بازخورد', 'دفتر شواهد', 'گزارش را از چت درس به این صفحه بیاور و پس از بررسی، نسخهٔ عمومی را در مخزن ثبت کن.') +
