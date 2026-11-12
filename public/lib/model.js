@@ -8,7 +8,7 @@ function assert(condition, message) {
 
 export function localDay(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
-    year: 'numeric', month: '2-digit', day: '2-digit'
+    year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Tehran'
   }).formatToParts(date);
   const part = type => parts.find(item => item.type === type).value;
   return [part('year'), part('month'), part('day')].join('-');

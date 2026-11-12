@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addDays, assessmentScores, lessonPrompt, mergeReports, progress,
+  addDays, assessmentScores, lessonPrompt, localDay, mergeReports, progress,
   reportTemplate, validateCurriculum, validateLedger, validateReport
 } from '../public/lib/model.js';
 import { loadData } from '../scripts/files.mjs';
@@ -56,6 +56,11 @@ test('review schedule rolls over months, rejects early reports, and resets after
   const restored = progress(course, [pass, good, failed, assessment('L01', '2026-01-04')]).get('L01');
   assert.equal(restored.due, '2026-01-05');
   assert.equal(restored.reviews, 0);
+});
+
+test('dates follow Tehran midnight on both the dashboard and CI', () => {
+  assert.equal(localDay(new Date('2026-11-12T20:29:59Z')), '2026-11-12');
+  assert.equal(localDay(new Date('2026-11-12T20:30:00Z')), '2026-11-13');
 });
 
 test('five successful reviews clear the queue', () => {
