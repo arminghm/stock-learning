@@ -43,14 +43,14 @@ export function validateCurriculum(course) {
       && new Set(items.map(item => item.id)).size === items.length
       && items.every(item => /^[a-z][a-z0-9]*$/.test(item.id) && Number.isInteger(item.points) && item.points > 0)
       && items.reduce((sum, item) => sum + item.points, 0) === 100;
-    assert(/^L\d{2}$/.test(lesson.id) && !previous.has(lesson.id) && modulesById.has(lesson.moduleId)
-      && [lesson.title, lesson.material, lesson.example, lesson.practice?.task, lesson.reviewPrompt].every(value => nonempty(value))
+    assert(/^(?:L\d{2}|\d{2}\.\d{2})$/.test(lesson.id) && !previous.has(lesson.id) && modulesById.has(lesson.moduleId)
+      && [lesson.title, lesson.material, lesson.example, lesson.practice?.task, lesson.reviewPrompt].every(value => nonempty(value)) && lesson.material.length >= 600
       && [lesson.terms, lesson.objectives].every(values => Array.isArray(values) && values.length > 0 && values.every(value => nonempty(value)))
       && Array.isArray(lesson.prerequisites) && new Set(lesson.prerequisites).size === lesson.prerequisites.length
       && lesson.prerequisites.every(id => previous.has(id))
       && validItems(lesson.quiz) && lesson.quiz.every(item => nonempty(item.question) && nonempty(item.key))
       && validItems(lesson.practice.rubric) && lesson.practice.rubric.every(item => nonempty(item.label))
-      && Array.isArray(lesson.sources) && lesson.sources.every(source => nonempty(source.title) && /^https:\/\//.test(source.url)),
+      && Array.isArray(lesson.sources) && lesson.sources.length && lesson.sources.every(source => nonempty(source.title) && /^https:\/\//.test(source.url)),
     'ساختار درس معتبر نیست: ' + lesson.id);
     previous.add(lesson.id);
   }
@@ -172,7 +172,7 @@ export function mergeReports(ledger, incoming, course) {
 }
 
 export function reportTemplate(lesson, kind, date = localDay()) {
-  const id = lesson.id.toLowerCase() + '-' + kind + '-' + globalThis.crypto.randomUUID();
+  const id = lesson.id.toLowerCase().replaceAll('.', '-') + '-' + kind + '-' + globalThis.crypto.randomUUID();
   const base = { schemaVersion: 1, id, lessonId: lesson.id, kind, date, feedback: '', nextStep: '' };
   if (kind === 'review') return { ...base, recall: '', score: null };
   return { ...base,
@@ -181,25 +181,44 @@ export function reportTemplate(lesson, kind, date = localDay()) {
   };
 }
 
+const rtlRules = [
+  'قوانین اجباری نگارش فارسی و نمایش راست‌به‌چپ:',
+  'هر عنوان، جمله، پاراگراف و بند فهرست را با یک واژه فارسی آغاز کن؛ اصطلاحات انگلیسی را داخل جمله و ترجیحاً داخل پرانتز بیاور.',
+  'اگر ناچار هستی یک بخش را با عبارت انگلیسی شروع کنی، آن عبارت را در سطر مستقل بنویس و پس از یک خط خالی، توضیح فارسی را از سطر جدید آغاز کن.',
+  'از جدول‌های فارسی و انگلیسی با خوانایی ضعیف استفاده نکن. شناسه‌ها، کد، فرمول و خروجی JSON را در بلوک‌های مستقل با جهت چپ‌به‌راست قرار بده.',
+  'این قواعد را حتی وقتی چت جداگانه به Project Instructions دسترسی ندارد رعایت کن.'
+].join('\n');
+
 export function lessonPrompt(lesson, course, kind = 'assessment') {
   const template = JSON.stringify(reportTemplate(lesson, kind), null, 2);
-  const privacy = 'فقط پاسخ‌های واقعی من و خروجی فرضی، بدون اطلاعات مالی یا هویتی، کلید، اسکرین‌شات حساب یا لینک خصوصی. چیزی را از طرف من نساز. تاریخ میلادی را برای روز انجام تأیید کن.';
+  const privacy = 'فقط پاسخ‌های واقعی یادگیرنده و داده‌های فرضی آموزشی را ثبت کن. اطلاعات هویتی، موجودی واقعی، شماره حساب، تصویر حساب و کلید دسترسی را وارد دفتر عمومی نکن. هیچ پاسخ یا تمرینی را جعل نکن. تاریخ میلادی روز واقعی جلسه را بپرس یا تأیید کن.';
+  const title = lesson.id === '00.01'
+    ? 'چت آموزشی: Trading Learning — 00.01 — Financial Markets Introduction'
+    : 'چت درس ' + lesson.id + ' | ' + lesson.title;
+  const common = [
+    title,
+    rtlRules,
+    'تدریس را تعاملی پیش ببر؛ در اولین پاسخ فقط هدف‌ها، اولین مفهوم و یک پرسش بررسی فهم را مطرح کن. برای ادامه هر مفهوم صبر کن تا من پاسخ بدهم.',
+    'برنامه جلسه ۴۵ دقیقه است: ' + course.policy.agenda.map(slot => slot.minutes + ' دقیقه ' + slot.label).join('، ') + '.',
+    privacy
+  ];
   if (kind === 'review') return [
-    'چت مرور ' + lesson.id + ' | ' + lesson.title,
-    'این مرور بازیابی درس است. ابتدا پرسش را مطرح کن و منتظر پاسخ من بمان. بعد استدلال و انتقال به مثال تازه را جداگانه، هر کدام از ۵۰، ارزیابی کن. اگر امتیاز از ' + course.policy.mastery + ' کمتر است یک تمرین اصلاحی بده.',
-    lesson.reviewPrompt, privacy,
-    'پس از پاسخ من فقط JSON تکمیل‌شده را برای انتقال دستی به داشبورد بده. score جمع دو امتیاز است؛ recall متن پاسخ و مثال من، feedback دلیل امتیاز و nextStep کار بعدی است.',
-    template
+    ...common,
+    'این جلسه مرور فعال است؛ ابتدا پرسش بازیابی را مطرح کن و تا پاسخ من منتظر بمان. استدلال و انتقال به یک مثال تازه را هرکدام از ۵۰ ارزیابی کن.',
+    'پرسش مرور: ' + lesson.reviewPrompt,
+    'پس از پاسخ واقعی من، امتیاز از ۱۰۰، ضعف و گام بعدی را با دلیل ثبت کن. اگر زیر ' + course.policy.mastery + ' است ارزیابی اصلاحی بده.',
+    'گزارش تکمیل‌شده را فقط به‌صورت JSON معتبر در یک بلوک کد بده. مقدارهای خالی را تا دریافت شواهد واقعی نگه دار:\n' + template
   ].join('\n\n');
   return [
-    'چت درس ' + lesson.id + ' | ' + lesson.title,
-    'مربی من باش. از سطح پیش‌نیاز درس و به فارسی، با اصطلاحات انگلیسی (' + lesson.terms.join(', ') + ') آموزش بده. برنامه ۴۵ دقیقه: ' + course.policy.agenda.map(slot => slot.minutes + ' دقیقه ' + slot.label).join('، ') + '.',
+    ...common,
     'پیش‌نیاز: ' + (lesson.prerequisites.join('، ') || 'هیچ') + '. هدف‌ها: ' + lesson.objectives.join('؛ ') + '.',
-    'آموزش: ' + lesson.material + '\nمثال حل‌شده: ' + lesson.example,
-    'تمرین: ' + lesson.practice.task + '\nمعیارهای امتیاز: ' + lesson.practice.rubric.map(item => item.id + ' (' + item.points + '): ' + item.label).join('؛ '),
-    'آزمون را یکی‌یکی بپرس و تا پاسخ من کلید را نگو:\n' + lesson.quiz.map(item => item.id + ' (' + item.points + '): ' + item.question + '\nکلید برای تصحیح: ' + item.key).join('\n'),
-    'هر سؤال و معیار را با دلیل و امتیاز صحیح ارزیابی کن. تسلط نیازمند حداقل ' + course.policy.mastery + ' از ۱۰۰ در هر دو بخش است. در پایان ضعف و تمرین بعدی را در feedback و nextStep بنویس. ' + privacy,
-    'پس از دریافت تمرین و هر دو پاسخ، JSON زیر را تکمیل کن تا من خودم در داشبورد وارد کنم. artifact متن یا جدول تمرین من است. اگر شواهد کامل نیست، به جای ساخت گزارش از من بخواه آن را کامل کنم.',
-    template
+    'محتوای آموزشی برای توضیح مرحله‌ای: ' + lesson.material,
+    'مثال حل‌شده برای نمایش پس از توضیح مفهوم: ' + lesson.example,
+    'تمرین عملی: ' + lesson.practice.task,
+    'معیارهای ارزیابی: ' + lesson.practice.rubric.map(item => item.points + ' امتیاز برای ' + item.label).join('؛ '),
+    'پرسش‌های آزمون را فقط پس از اتمام تدریس و تمرین، یکی‌یکی بپرس و برای هر پاسخ منتظر بمان:\n' + lesson.quiz.map(item => 'پرسش ' + item.id + ' (' + item.points + ' امتیاز): ' + item.question).join('\n'),
+    'پیش از پاسخ من هیچ کلید تصحیح یا راه‌حل نهایی را ارائه نکن. پس از دریافت پاسخ‌ها، توضیح بده کدام بخش استدلال درست و کدام ناقص بوده است. آزمون مفهومی و تمرین عملی باید هرکدام مستقل حداقل ' + course.policy.mastery + ' از ۱۰۰ امتیاز بگیرند.',
+    'پس از دریافت همه پاسخ‌ها و تمرین، گزارش JSON را با پاسخ‌ها و امتیازهای واقعی تکمیل کن. اگر داده کافی نیست، گزارش موفقیت نساز؛ درخواست تکمیل شواهد بده. این گزارش به‌صورت خودکار با GitHub همگام نمی‌شود.',
+    'الگوی گزارش (پس از دریافت شواهد با داده واقعی تکمیل کن):\n' + template
   ].join('\n\n');
 }
