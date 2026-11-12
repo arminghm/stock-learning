@@ -131,13 +131,13 @@ function lessonPage(id, kind) {
       <section class="panel content-panel"><h2>هدف‌های یادگیری</h2>${list(lesson.objectives)}
       <h3>پیش‌نیاز</h3><p>${lesson.prerequisites.length ? lesson.prerequisites.map(key => link('lesson/' + key, key, 'text-link')).join('، ') : 'از صفر شروع کن.'}</p>
       ${!item.ready && !item.mastered ? '<p class="notice">می‌توانی درس را بخوانی. ثبت ارزیابی پس از احراز پیش‌نیازها ممکن است.</p>' : ''}</section>
-      <section class="panel content-panel"><h2>متن درس</h2><p>${esc(lesson.material)}</p><div class="worked"><h3>مثال حل‌شده</h3><p>${esc(lesson.example)}</p></div>
-      ${lesson.sources.length ? '<h3>مطالعهٔ تکمیلی</h3><ul>' + lesson.sources.map(source => `<li><a class="text-link" href="${esc(source.url)}" lang="en" dir="ltr">${esc(source.title)}</a></li>`).join('') + '</ul>' : ''}</section>
+      <section class="panel content-panel"><h2>متن درس</h2><div class="lesson-reading" dir="rtl">${esc(lesson.material)}</div><div class="worked"><h3>مثال حل‌شده</h3><p>${esc(lesson.example)}</p></div>
+      ${lesson.sources.length ? '<h3>مطالعهٔ تکمیلی</h3><ul>' + lesson.sources.map(source => `<li>منبع: <a class="text-link" href="${esc(source.url)}" dir="auto" target="_blank" rel="noopener noreferrer">${esc(source.title)}</a></li>`).join('') + '</ul>' : ''}</section>
       <section class="panel content-panel"><h2>تمرین عملی</h2><p>${esc(lesson.practice.task)}</p>
       <details><summary>معیارهای تصحیح</summary>${list(lesson.practice.rubric.map(entry => num(entry.points) + ' امتیاز · ' + entry.label))}</details></section>
       <section class="panel content-panel"><h2>آزمون مفهومی</h2>${ordered(lesson.quiz.map(question => question.question + ' (' + num(question.points) + ' امتیاز)'))}
       <details><summary>پاسخ‌نامه پس از تلاش</summary>${ordered(lesson.quiz.map(question => question.key))}</details></section>`}
-    <section class="panel content-panel"><h2>پرامپت چت مستقل</h2><p>یک چت تازه با همین عنوان باز کن. پس از انجام تمرین، گزارش JSON آن چت را به دفتر شواهد بیاور.</p>
+    <section class="panel content-panel"><h2>پرامپت چت مستقل</h2><p>عنوان چت در ابتدای پرامپت قرار دارد و قوانین RTL درون آن گنجانده شده‌اند. پس از انجام تمرین، گزارش JSON را به دفتر شواهد بیاور؛ چت به‌صورت خودکار با GitHub همگام نمی‌شود.</p>
       <button class="button" data-action="copy">کپی پرامپت</button>
       <details id="prompt-details"><summary>نمایش متن برای کپی دستی</summary><textarea readonly aria-label="پرامپت چت" rows="12">${esc(promptText)}</textarea></details>
     </section></article>
