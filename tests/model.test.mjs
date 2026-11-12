@@ -120,3 +120,26 @@ test('staged evidence must be merged against published prerequisites', () => {
   assert.throws(() => mergeReports(empty, second, course), /پیش‌نیاز/);
   assert.equal(mergeReports(published, second, course).records.length, 2);
 });
+
+test('historical tutor report is valid, retains exact scores, and unlocks the next lesson without invented raw answers', async () => {
+  const { ledger } = await loadData();
+  const report = ledger.records.find(record => record.id === 'intro-20261112-tutor-summary-01');
+  assert.ok(report);
+  assert.equal(report.kind, 'session_assessment');
+  assert.equal(report.source, 'tutor_session_summary');
+  assert.deepEqual(assessmentScores(report), { quiz: 95, practice: 90 });
+  assert.equal(report.evidence.conceptual.length, 5);
+  assert.equal(report.evidence.practical.length, 5);
+  assert.equal(report.evidence.conceptual.reduce((sum, item) => sum + item.score, 0), 9.5);
+  assert.equal(report.evidence.conceptual.reduce((sum, item) => sum + item.maxScore, 0), 10);
+  assert.equal(progress(course, ledger.records, '2026-11-13').get('00.01').due, '2026-11-13');
+  assert.equal(progress(course, ledger.records, '2026-11-13').get('L01').status, 'ready');
+  assert.equal(validateLedger(ledger, course), ledger);
+  assert.equal(Object.hasOwn(report, 'answers'), false);
+  const invalid = structuredClone(report);
+  invalid.quizScore = 100;
+  assert.throws(() => validateReport(invalid, course), /مفهومی/);
+  const invalidSource = structuredClone(report);
+  invalidSource.source = 'unverified';
+  assert.throws(() => validateReport(invalidSource, course), /گزارش پیشین/);
+});
